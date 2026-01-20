@@ -8,7 +8,8 @@ from typing import Set
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
-from tcp_server_ecc import STATE, run_tcp_server
+#from tcp_server_ecc import STATE, run_tcp_server
+from serial_gateway import STATE, run_serial_gateway
 
 
 app = FastAPI()
@@ -38,7 +39,7 @@ async def broadcast(event: dict) -> None:
 # ------------------------------------------------------------------
 @app.on_event("startup")
 async def startup() -> None:
-    asyncio.create_task(run_tcp_server(broadcast))
+    asyncio.create_task(run_serial_gateway(broadcast))
     # optional: push a status for UI logs
     await broadcast({"type": "status", "status": "web_server_started"})
 
