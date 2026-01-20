@@ -26,26 +26,30 @@ TCP_PORT = 9000
 STATE: Dict[str, Any] = {
     "deviceId": None,
     "temp": None,
-    "lux": None,
+    "pressure": None,
     "ts": None,
     "status": "idle",
 }
 
-# internal session key
+# internal session key (per connection in this TP)
 _session_aes_key: Optional[bytes] = None
 
 
 def b64e(b: bytes) -> str:
     return base64.b64encode(b).decode("ascii")
 
+
 def b64d(s: str) -> bytes:
     return base64.b64decode(s.encode("ascii"))
+
 
 def load_cert(path: Path) -> x509.Certificate:
     return x509.load_pem_x509_certificate(path.read_bytes())
 
+
 def load_privkey(path: Path):
     return serialization.load_pem_private_key(path.read_bytes(), password=None)
+
 
 def server_cert_pem() -> str:
     return SERVER_CERT_PATH.read_text(encoding="utf-8")
@@ -69,11 +73,14 @@ def verify_server_cert_signed_by_ca() -> None:
         raise RuntimeError("Server certificate is NOT signed by CA") from e
 
 
-def derive_aes_key_from_ecdh(server_priv: ec.EllipticCurvePrivateKey, client_pub: ec.EllipticCurvePublicKey) -> bytes:
-    shared = server_priv.exchange(ec.ECDH(), client_pub)  # shared secret
+def derive_aes_key_from_ecdh(
+    server_priv: ec.EllipticCurvePrivateKey,
+    client_pub: ec.EllipticCurvePublicKey,
+) -> bytes:
+    shared = server_priv.exchange(ec.ECDH(), client_pub)
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
-        length=32,                 # AES-256
+        length=32,  # AES-256
         salt=None,
         info=b"ISEN-FINALPROJECT-ECDH",
     )
@@ -90,11 +97,14 @@ async def run_tcp_server(broadcast_cb):
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         global _session_aes_key
         peer = writer.get_extra_info("peername")
+
         STATE["status"] = f"stm32_connected {peer}"
         await broadcast_cb({"type": "status", "status": STATE["status"]})
 
         # 1) send certificate to client
-        writer.write((json.dumps({"type": "cert", "cert_pem": server_cert_pem()}) + "\n").encode("utf-8"))
+        writer.write(
+            (json.dumps({"type": "cert", "cert_pem": server_cert_pem()}) + "\n").encode("utf-8")
+        )
         await writer.drain()
 
         # 2) create server ECDH ephemeral keypair (P-256)
@@ -106,9 +116,6 @@ async def run_tcp_server(broadcast_cb):
                 line = await reader.readline()
                 if not line:
                     break
-                line = line.strip()
-                if not line:
-                    continue
 
                 msg = json.loads(line.decode("utf-8"))
                 t = msg.get("type")
@@ -118,27 +125,32 @@ async def run_tcp_server(broadcast_cb):
                     await broadcast_cb({"type": "hello", "deviceId": STATE["deviceId"]})
 
                 elif t == "ecdh_pub":
-                    # Receive client ECDH public key (uncompressed point in X9.62 format)
+                    # Receive client ECDH public key
                     client_pub_bytes = b64d(msg["pub_b64"])
-                    client_pub = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), client_pub_bytes)
+                    client_pub = ec.EllipticCurvePublicKey.from_encoded_point(
+                        ec.SECP256R1(), client_pub_bytes
+                    )
 
                     # Send server ECDH public key
                     server_pub_bytes = server_ecdh_pub.public_bytes(
                         encoding=serialization.Encoding.X962,
                         format=serialization.PublicFormat.UncompressedPoint,
                     )
-                    writer.write((json.dumps({"type": "ecdh_pub", "pub_b64": b64e(server_pub_bytes)}) + "\n").encode("utf-8"))
+                    writer.write(
+                        (json.dumps({"type": "ecdh_pub", "pub_b64": b64e(server_pub_bytes)}) + "\n")
+                        .encode("utf-8")
+                    )
                     await writer.drain()
 
                     # Derive AES key
                     _session_aes_key = derive_aes_key_from_ecdh(server_ecdh_priv, client_pub)
-                    await broadcast_cb({"type": "key_ok", "info": "ECDH established, AES key derived"})
+                    await broadcast_cb({"type": "key_ok"})
                     writer.write((json.dumps({"type": "key_ok"}) + "\n").encode("utf-8"))
                     await writer.drain()
 
                 elif t == "data":
                     if _session_aes_key is None:
-                        raise RuntimeError("No session key yet. Need ECDH first.")
+                        raise RuntimeError("No session key yet (ECDH not done).")
 
                     nonce = b64d(msg["nonce_b64"])
                     ct = b64d(msg["ct_b64"])
@@ -149,7 +161,7 @@ async def run_tcp_server(broadcast_cb):
                     payload = json.loads(plain.decode("utf-8"))
 
                     STATE["temp"] = payload.get("temp")
-                    STATE["lux"] = payload.get("lux")
+                    STATE["pressure"] = payload.get("pressure")
                     STATE["ts"] = payload.get("ts")
                     STATE["status"] = "running"
 
@@ -161,14 +173,17 @@ async def run_tcp_server(broadcast_cb):
         except Exception as e:
             STATE["status"] = f"error: {e}"
             await broadcast_cb({"type": "status", "status": STATE["status"]})
+
         finally:
             writer.close()
             await writer.wait_closed()
+            _session_aes_key = None
             STATE["status"] = "stm32_disconnected"
             await broadcast_cb({"type": "status", "status": STATE["status"]})
 
     server = await asyncio.start_server(handle, TCP_HOST, TCP_PORT)
     addrs = ", ".join(str(s.getsockname()) for s in server.sockets)
     print(f"[OK] STM32 TCP server listening on {addrs}")
+
     async with server:
         await server.serve_forever()

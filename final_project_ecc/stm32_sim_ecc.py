@@ -24,17 +24,20 @@ CA_CERT_PATH = PKI / "ca_cert.pem"
 def b64e(b: bytes) -> str:
     return base64.b64encode(b).decode("ascii")
 
+
 def b64d(s: str) -> bytes:
     return base64.b64decode(s.encode("ascii"))
+
 
 def derive_aes_key(shared: bytes) -> bytes:
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
-        length=32,
+        length=32,  # AES-256
         salt=None,
         info=b"ISEN-FINALPROJECT-ECDH",
     )
     return hkdf.derive(shared)
+
 
 def verify_server_cert_with_ca(cert_pem: str) -> x509.Certificate:
     ca = x509.load_pem_x509_certificate(CA_CERT_PATH.read_bytes())
@@ -53,76 +56,92 @@ async def main():
     reader, writer = await asyncio.open_connection(TCP_HOST, TCP_PORT)
     print("[SIM] Connected to server")
 
-    # Send hello
-    writer.write((json.dumps({"type":"hello","deviceId":"stm32-01","proto":1}) + "\n").encode())
-    await writer.drain()
-
-    # Receive server cert
-    cert_msg = json.loads((await reader.readline()).decode())
-    assert cert_msg["type"] == "cert"
-    cert_pem = cert_msg["cert_pem"]
-    print("[SIM] Received server certificate")
-
-    # BONUS: verify server cert using CA
-    srv_cert = verify_server_cert_with_ca(cert_pem)
-    print("[SIM] Server cert verified with CA ✅")
-
-    # ECDH (client side): generate ephemeral keypair
-    client_priv = ec.generate_private_key(ec.SECP256R1())
-    client_pub = client_priv.public_key()
-    client_pub_bytes = client_pub.public_bytes(
-        encoding=serialization.Encoding.X962,
-        format=serialization.PublicFormat.UncompressedPoint,
-    )
-
-    # Send client ECDH pub
-    writer.write((json.dumps({"type":"ecdh_pub", "pub_b64": b64e(client_pub_bytes)}) + "\n").encode())
-    await writer.drain()
-    print("[SIM] Sent client ECDH public key")
-
-    # Receive server ECDH pub
-    srv_ecdh_msg = json.loads((await reader.readline()).decode())
-    assert srv_ecdh_msg["type"] == "ecdh_pub"
-    srv_pub_bytes = b64d(srv_ecdh_msg["pub_b64"])
-    srv_pub = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), srv_pub_bytes)
-    print("[SIM] Received server ECDH public key")
-
-    # Derive shared secret -> AES key
-    shared = client_priv.exchange(ec.ECDH(), srv_pub)
-    aes_key = derive_aes_key(shared)
-    print("[SIM] Derived AES-256 key via HKDF ✅")
-
-    # Ack key_ok (optional)
-    ack = json.loads((await reader.readline()).decode())
-    print("[SIM] Server says:", ack)
-
-    aesgcm = AESGCM(aes_key)
-
-    while True:
-        payload = {
-            "temp": round(20 + (os.urandom(1)[0] / 255) * 10, 2),
-            "lux": int(100 + (os.urandom(1)[0] / 255) * 900),
-            "ts": int(time.time()),
-        }
-        plain = json.dumps(payload).encode("utf-8")
-
-        nonce = os.urandom(12)
-        ct_tag = aesgcm.encrypt(nonce, plain, associated_data=None)
-        ct = ct_tag[:-16]
-        tag = ct_tag[-16:]
-
-        msg = {
-            "type":"data",
-            "ts": payload["ts"],
-            "nonce_b64": b64e(nonce),
-            "ct_b64": b64e(ct),
-            "tag_b64": b64e(tag),
-        }
-        writer.write((json.dumps(msg) + "\n").encode())
+    try:
+        # Send hello
+        writer.write((json.dumps({"type": "hello", "deviceId": "stm32-01", "proto": 1}) + "\n").encode("utf-8"))
         await writer.drain()
-        print("[SIM] Sent:", payload)
 
-        await asyncio.sleep(2)
+        # Receive server cert
+        cert_msg = json.loads((await reader.readline()).decode("utf-8"))
+        if cert_msg.get("type") != "cert":
+            raise RuntimeError(f"Expected 'cert', got: {cert_msg}")
+        cert_pem = cert_msg["cert_pem"]
+        print("[SIM] Received server certificate")
+
+        # BONUS: verify server cert using CA
+        _ = verify_server_cert_with_ca(cert_pem)
+        print("[SIM] Server cert verified with CA ✅")
+
+        # ECDH (client side): generate ephemeral keypair
+        client_priv = ec.generate_private_key(ec.SECP256R1())
+        client_pub = client_priv.public_key()
+        client_pub_bytes = client_pub.public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint,
+        )
+
+        # Send client ECDH pub
+        writer.write((json.dumps({"type": "ecdh_pub", "pub_b64": b64e(client_pub_bytes)}) + "\n").encode("utf-8"))
+        await writer.drain()
+        print("[SIM] Sent client ECDH public key")
+
+        # Receive server ECDH pub
+        srv_ecdh_msg = json.loads((await reader.readline()).decode("utf-8"))
+        if srv_ecdh_msg.get("type") != "ecdh_pub":
+            raise RuntimeError(f"Expected 'ecdh_pub', got: {srv_ecdh_msg}")
+
+        srv_pub_bytes = b64d(srv_ecdh_msg["pub_b64"])
+        srv_pub = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), srv_pub_bytes)
+        print("[SIM] Received server ECDH public key")
+
+        # Derive shared secret -> AES key
+        shared = client_priv.exchange(ec.ECDH(), srv_pub)
+        aes_key = derive_aes_key(shared)
+        print("[SIM] Derived AES-256 key via HKDF ✅")
+
+        # Ack key_ok (optional)
+        ack = json.loads((await reader.readline()).decode("utf-8"))
+        print("[SIM] Server says:", ack)
+
+        aesgcm = AESGCM(aes_key)
+
+        while True:
+            # ---- SENSOR PAYLOAD (SIMULATION) ----
+            # temp: 20..30°C
+            # pressure: 980..1040 hPa (typical)
+            payload = {
+                "temp": round(20 + (os.urandom(1)[0] / 255) * 10, 2),
+                "pressure": round(980 + (os.urandom(1)[0] / 255) * 60, 2),
+                "ts": int(time.time()),
+            }
+
+            plain = json.dumps(payload).encode("utf-8")
+
+            nonce = os.urandom(12)  # AES-GCM nonce 12 bytes
+            ct_tag = aesgcm.encrypt(nonce, plain, associated_data=None)
+            ct = ct_tag[:-16]
+            tag = ct_tag[-16:]
+
+            msg = {
+                "type": "data",
+                "ts": payload["ts"],
+                "nonce_b64": b64e(nonce),
+                "ct_b64": b64e(ct),
+                "tag_b64": b64e(tag),
+            }
+
+            writer.write((json.dumps(msg) + "\n").encode("utf-8"))
+            await writer.drain()
+            print("[SIM] Sent:", payload)
+
+            await asyncio.sleep(2)
+
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
