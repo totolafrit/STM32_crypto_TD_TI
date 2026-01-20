@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>STM32 Sensors - ECC Secure Link</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    .card { border: 1px solid #ddd; padding: 16px; border-radius: 10px; max-width: 750px; }
+    .row { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; }
+    .k { color: #666; font-size: 12px; }
+    .v { font-size: 22px; }
+    #log { white-space: pre-wrap; background: #fafafa; border: 1px solid #eee; padding: 12px; border-radius: 8px; height: 240px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>STM32 Secure Sensors (ECC)</h1>
+
+  <div class="card">
+    <div class="k">Status</div>
+    <div class="v" id="status">connecting...</div>
+
+    <div class="row">
+      <div>
+        <div class="k">Device</div>
+        <div class="v" id="device">-</div>
+      </div>
+      <div>
+        <div class="k">Temperature</div>
+        <div class="v" id="temp">-</div>
+      </div>
+      <div>
+        <div class="k">Luminosity</div>
+        <div class="v" id="lux">-</div>
+      </div>
+      <div>
+        <div class="k">Timestamp</div>
+        <div class="v" id="ts">-</div>
+      </div>
+    </div>
+
+    <h3>Log</h3>
+    <div id="log"></div>
+  </div>
+
+<script>
+  const statusEl = document.getElementById("status");
+  const deviceEl = document.getElementById("device");
+  const tempEl = document.getElementById("temp");
+  const luxEl = document.getElementById("lux");
+  const tsEl = document.getElementById("ts");
+  const logEl = document.getElementById("log");
+
+  function log(line) {
+    logEl.textContent += line + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+
+  ws.onopen = () => log("[WS] connected");
+  ws.onclose = () => log("[WS] closed");
+  ws.onerror = () => log("[WS] error");
+
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+
+    if (msg.type === "state") {
+      statusEl.textContent = msg.status ?? "-";
+      deviceEl.textContent = msg.deviceId ?? "-";
+      tempEl.textContent = msg.temp ?? "-";
+      luxEl.textContent = msg.lux ?? "-";
+      tsEl.textContent = msg.ts ?? "-";
+      log("[STATE] loaded");
+      return;
+    }
+
+    if (msg.type === "status") {
+      statusEl.textContent = msg.status;
+      log("[STATUS] " + msg.status);
+      return;
+    }
+
+    if (msg.type === "hello") {
+      deviceEl.textContent = msg.deviceId ?? "-";
+      log("[HELLO] deviceId=" + msg.deviceId);
+      return;
+    }
+
+    if (msg.type === "key_ok") {
+      log("[CRYPTO] ECDH done -> AES key derived");
+      return;
+    }
+
+    if (msg.type === "data") {
+      statusEl.textContent = msg.status ?? "running";
+      deviceEl.textContent = msg.deviceId ?? "-";
+      tempEl.textContent = msg.temp ?? "-";
+      luxEl.textContent = msg.lux ?? "-";
+      tsEl.textContent = msg.ts ?? "-";
+      log(`[DATA] temp=${msg.temp} lux=${msg.lux} ts=${msg.ts}`);
+      return;
+    }
+
+    if (msg.type === "log") {
+      log("[LOG] " + msg.msg);
+      return;
+    }
+  };
+
+  setInterval(() => { if (ws.readyState === 1) ws.send("ping"); }, 5000);
+</script>
+</body>
+</html>
