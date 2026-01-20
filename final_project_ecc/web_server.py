@@ -6,17 +6,21 @@ from pathlib import Path
 from typing import Set
 
 from fastapi import FastAPI, WebSocket
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from tcp_server_ecc import STATE, run_tcp_server
+
 
 app = FastAPI()
 clients: Set[WebSocket] = set()
 
 
-async def broadcast(event: dict):
-    dead = []
+# ------------------------------------------------------------------
+# Broadcast helper (send events to all connected WS clients)
+# ------------------------------------------------------------------
+async def broadcast(event: dict) -> None:
     data = json.dumps(event)
+    dead: list[WebSocket] = []
 
     # iterate on a snapshot to avoid "set changed size during iteration"
     for ws in list(clients):
@@ -29,14 +33,19 @@ async def broadcast(event: dict):
         clients.discard(ws)
 
 
+# ------------------------------------------------------------------
+# Startup: launch TCP server in background
+# ------------------------------------------------------------------
 @app.on_event("startup")
-async def startup():
-    # Start TCP server in background task
+async def startup() -> None:
     asyncio.create_task(run_tcp_server(broadcast))
-    # optional: log for UI
+    # optional: push a status for UI logs
     await broadcast({"type": "status", "status": "web_server_started"})
 
 
+# ------------------------------------------------------------------
+# Main HTML page
+# ------------------------------------------------------------------
 @app.get("/")
 async def root():
     index_path = Path("web") / "index.html"
@@ -50,6 +59,33 @@ async def root():
     return HTMLResponse(html)
 
 
+# ------------------------------------------------------------------
+# CSS file (linked from index.html)
+# ------------------------------------------------------------------
+@app.get("/styles.css")
+async def styles():
+    css_path = Path("web") / "styles.css"
+    if not css_path.exists():
+        return PlainTextResponse(
+            "Missing web/styles.css. Create the file in ./web/styles.css",
+            status_code=500,
+        )
+
+    css = css_path.read_text(encoding="utf-8")
+    return Response(content=css, media_type="text/css")
+
+
+# ------------------------------------------------------------------
+# (Optional) quick health check
+# ------------------------------------------------------------------
+@app.get("/health")
+async def health():
+    return {"ok": True, "clients": len(clients), "state": STATE}
+
+
+# ------------------------------------------------------------------
+# WebSocket endpoint
+# ------------------------------------------------------------------
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
@@ -58,7 +94,7 @@ async def ws_endpoint(ws: WebSocket):
     # send current state immediately
     await ws.send_text(json.dumps({"type": "state", **STATE}))
 
-    # inform all clients that someone connected (optional)
+    # optional: notify others
     await broadcast({"type": "status", "status": "web_connected"})
 
     try:
@@ -69,7 +105,7 @@ async def ws_endpoint(ws: WebSocket):
             if msg.strip().lower() == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
             else:
-                # if you later add UI commands, handle them here
+                # future UI commands could go here
                 await ws.send_text(json.dumps({"type": "log", "msg": f"UI says: {msg}"}))
 
     except Exception:

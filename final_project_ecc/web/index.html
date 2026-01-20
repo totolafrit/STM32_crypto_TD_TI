@@ -3,588 +3,443 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>STM32 Sensors - ECC Secure Link</title>
-  <style>
-    :root{
-      --bg0:#0b1020;
-      --bg1:#0f1630;
-      --card:#111a36cc;
-      --stroke:#233058;
-      --text:#e7ebff;
-      --muted:#aab2df;
-      --good:#44d19f;
-      --info:#3aa0ff;
-      --warn:#ffb020;
-      --bad:#ff4d6d;
-      --shadow: 0 18px 40px rgba(0,0,0,.35);
-      --radius: 18px;
-    }
-
-    *{ box-sizing:border-box; }
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      color:var(--text);
-      background:
-        radial-gradient(1200px 700px at 10% 10%, #2b3a8a40, transparent 60%),
-        radial-gradient(900px 500px at 80% 20%, #00d4ff20, transparent 55%),
-        radial-gradient(900px 600px at 30% 90%, #ff4d6d15, transparent 60%),
-        linear-gradient(180deg, var(--bg0), var(--bg1));
-      min-height:100vh;
-    }
-
-    header{
-      padding:24px 22px 10px;
-      max-width:1100px;
-      margin:0 auto;
-      display:flex;
-      gap:16px;
-      align-items:center;
-      justify-content:space-between;
-    }
-
-    .brand{ display:flex; gap:12px; align-items:center; }
-    .logo{
-      width:42px; height:42px; border-radius:14px;
-      background: linear-gradient(135deg, #59f 0%, #44d19f 55%, #ffb020 100%);
-      box-shadow: 0 10px 24px rgba(0,0,0,.35);
-    }
-    h1{ font-size:18px; line-height:1.2; margin:0; letter-spacing:.2px; }
-    .sub{ font-size:12px; color:var(--muted); margin-top:2px; }
-
-    .pill{
-      padding:10px 12px;
-      border:1px solid var(--stroke);
-      background: rgba(17,26,54,.55);
-      border-radius:999px;
-      box-shadow: 0 10px 24px rgba(0,0,0,.25);
-      display:flex;
-      gap:10px;
-      align-items:center;
-      max-width:560px;
-      overflow:hidden;
-    }
-    .dot{
-      width:10px;height:10px;border-radius:999px;
-      background:#777;
-      box-shadow:0 0 0 6px rgba(255,255,255,.03);
-      transition: background 250ms ease, box-shadow 250ms ease;
-    }
-    .statusText{
-      font-size:12px; color:var(--muted);
-      white-space:nowrap; text-overflow:ellipsis; overflow:hidden;
-    }
-
-    main{
-      max-width:1100px;
-      margin:0 auto;
-      padding:14px 22px 28px;
-      display:grid;
-      grid-template-columns: 1.2fr .8fr;
-      gap:18px;
-    }
-    @media (max-width: 940px){
-      main{ grid-template-columns:1fr; }
-      .pill{ max-width:100%; }
-    }
-
-    .card{
-      background: linear-gradient(180deg, rgba(17,26,54,.75), rgba(14,21,45,.55));
-      border:1px solid var(--stroke);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding:16px;
-    }
-
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:14px;
-    }
-    @media (max-width: 940px){ .grid{ grid-template-columns:1fr; } }
-
-    .cardTitle{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      margin-bottom:12px;
-      gap:12px;
-    }
-    .cardTitle h2{ font-size:14px; margin:0; color:var(--text); letter-spacing:.2px; }
-    .hint{ font-size:12px; color:var(--muted); }
-
-    /* Chips */
-    .chips{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
-    .chip{
-      flex: 1 1 170px;
-      min-width: 190px;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid var(--stroke);
-      background: rgba(15,23,51,.55);
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-end;
-      gap:12px;
-    }
-    .chip .k{ font-size:11px; color:var(--muted); margin-bottom:4px; }
-    .chip .v{ font-size:22px; font-weight:800; letter-spacing:.2px; }
-    .chip .unit{ font-size:12px; color:var(--muted); font-weight:600; margin-left:6px; }
-
-    /* Thermometer */
-    .thermoWrap{ display:flex; gap:18px; align-items:center; }
-    .thermo{
-      width:68px;
-      height:260px;
-      border-radius: 999px;
-      border:1px solid var(--stroke);
-      background: rgba(15,23,51,.55);
-      position:relative;
-      overflow:hidden;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
-    }
-    .thermo::before{
-      content:"";
-      position:absolute; inset:10px;
-      border-radius: 999px;
-      border:1px dashed rgba(255,255,255,.08);
-      pointer-events:none;
-    }
-    .thermoFill{
-      position:absolute; left:0; right:0; bottom:0;
-      height: 0%;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,0)) ,
-        linear-gradient(180deg, #3aa0ff, #44d19f, #ffb020, #ff4d6d);
-      filter:saturate(1.1);
-      transition: height 450ms cubic-bezier(.2,.9,.2,1);
-    }
-    .bulb{
-      width:84px; height:84px;
-      border-radius:999px;
-      border:1px solid var(--stroke);
-      background: rgba(15,23,51,.55);
-      display:grid; place-items:center;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
-      position:relative; overflow:hidden;
-    }
-    .bulbGlow{
-      width:64px; height:64px; border-radius:999px;
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), rgba(255,255,255,0) 55%),
-                  radial-gradient(circle at 50% 60%, rgba(68,209,159,.25), rgba(68,209,159,0) 70%);
-      transition: background 250ms ease;
-    }
-    .scale{ display:flex; flex-direction:column; gap:10px; }
-    .scale .label{ font-size:12px; color:var(--muted); }
-    .bigTemp{ font-size:34px; font-weight:900; line-height:1.0; }
-    .tempBadge{
-      display:inline-flex;
-      padding:6px 10px;
-      border-radius: 999px;
-      border:1px solid var(--stroke);
-      background: rgba(15,23,51,.55);
-      color: var(--muted);
-      font-size:12px;
-      gap:8px;
-      align-items:center;
-      width: fit-content;
-    }
-
-    /* Balloon Pressure */
-    .balloonZone{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
-    .balloon{
-      width:220px; height:220px;
-      border-radius: 999px;
-      border:1px solid var(--stroke);
-      background:
-        radial-gradient(circle at 30% 25%, rgba(255,255,255,.22), rgba(255,255,255,0) 55%),
-        radial-gradient(circle at 60% 70%, rgba(58,160,255,.18), rgba(58,160,255,0) 60%),
-        rgba(15,23,51,.55);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
-      position:relative;
-      transform: scale(0.75);
-      transition: transform 500ms cubic-bezier(.2,.9,.2,1);
-      overflow:hidden;
-    }
-    .balloon::after{
-      content:"";
-      position:absolute;
-      width:140px; height:140px;
-      border-radius:999px;
-      left:28px; top:22px;
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.16), rgba(255,255,255,0) 65%);
-      transform: rotate(-10deg);
-      pointer-events:none;
-    }
-    .balloonTie{
-      position:absolute;
-      bottom:-18px; left:50%;
-      transform:translateX(-50%);
-      width:46px; height:46px;
-      background: rgba(15,23,51,.75);
-      border:1px solid var(--stroke);
-      border-radius: 12px;
-      clip-path: polygon(50% 0%, 100% 55%, 50% 100%, 0% 55%);
-    }
-    .balloonString{
-      position:absolute;
-      bottom:-120px; left:50%;
-      transform:translateX(-50%);
-      width:2px; height:120px;
-      background: rgba(255,255,255,.12);
-    }
-
-    .pressureMeta{ flex:1; min-width: 200px; }
-    .pressureMeta .big{ font-size:30px; font-weight:900; line-height:1; }
-    .bar{
-      margin-top:10px;
-      width:100%;
-      height:10px;
-      border-radius:999px;
-      background: rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.08);
-      overflow:hidden;
-    }
-    .bar > div{
-      height:100%;
-      width:0%;
-      background: linear-gradient(90deg, #3aa0ff, #44d19f, #ffb020);
-      transition: width 450ms cubic-bezier(.2,.9,.2,1);
-    }
-
-    /* Sparkline */
-    .spark{
-      width:100%;
-      height:52px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(12,18,38,.40);
-      overflow:hidden;
-    }
-    .spark svg{ width:100%; height:100%; display:block; }
-    .sparkTitle{ font-size:11px; color:var(--muted); margin-top:8px; }
-
-    /* Logs */
-    #log{
-      white-space: pre-wrap;
-      background: rgba(12,18,38,.55);
-      border:1px solid rgba(255,255,255,.08);
-      padding: 12px;
-      border-radius: 14px;
-      height: 280px;
-      overflow: auto;
-      color: #d8ddff;
-      font-size: 12px;
-      line-height: 1.35;
-    }
-    .row2{ display:grid; grid-template-columns: 1fr; gap:12px; }
-    .tiny{ font-size:11px; color:var(--muted); }
-
-    .btn{
-      appearance:none;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(15,23,51,.55);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 8px 10px;
-      font-size: 12px;
-      cursor:pointer;
-      transition: transform 120ms ease, background 150ms ease, border-color 150ms ease;
-    }
-    .btn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.18); }
-    .btn:active{ transform: translateY(0px); }
-    code{ color:#cfe2ff; }
-  </style>
+  <title>STM32 Secure Sensors</title>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 
 <body>
-  <header>
-    <div class="brand">
-      <div class="logo"></div>
-      <div>
-        <h1>STM32 Secure Sensors (ECC)</h1>
-        <div class="sub">ECDH (P-256) → HKDF-SHA256 → AES-256-GCM • Live dashboard</div>
-      </div>
-    </div>
-
-    <div class="pill" title="Connexion et état du lien STM32">
-      <div class="dot" id="dot"></div>
-      <div class="statusText" id="status">connecting...</div>
-    </div>
-  </header>
-
-  <main>
-    <!-- LEFT -->
-    <section class="card">
-      <div class="cardTitle">
-        <h2>Capteurs</h2>
-        <div class="hint">Visualisations live</div>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brandLogo"></div>
+        <div class="brandTxt">
+          <div class="brandTitle">STM32 Secure Sensors</div>
+          <div class="brandSub">ECC key exchange • AES-256-GCM</div>
+        </div>
       </div>
 
-      <div class="grid">
-        <!-- Thermometer -->
-        <div class="card">
-          <div class="cardTitle">
-            <h2>Température</h2>
-            <div class="hint">thermomètre</div>
+      <div class="nav">
+        <button class="navBtn active" data-view="home">
+          <span class="navIco">⌂</span>
+          <span class="navLbl">Accueil</span>
+        </button>
+
+        <button class="navBtn" data-view="temp">
+          <span class="navIco">🌡</span>
+          <span class="navLbl">Temp</span>
+        </button>
+
+        <button class="navBtn" data-view="press">
+          <span class="navIco">⏲</span>
+          <span class="navLbl">Press</span>
+        </button>
+
+        <button class="navBtn" data-view="logs">
+          <span class="navIco">≡</span>
+          <span class="navLbl">Logs</span>
+        </button>
+      </div>
+
+      <div class="sideCards">
+        <div class="sideCard">
+          <div class="k">Device</div>
+          <div class="v" id="device">-</div>
+        </div>
+
+        <div class="sideCard">
+          <div class="k">Date</div>
+          <div class="v small" id="dateTxt">-</div>
+        </div>
+
+        <div class="sideCard">
+          <div class="k">Statut</div>
+          <div class="statusPill">
+            <span class="dot" id="dot"></span>
+            <span id="status">idle</span>
           </div>
+        </div>
+      </div>
+    </aside>
 
-          <div class="thermoWrap">
-            <div>
-              <div class="thermo" aria-label="Thermometer">
-                <div class="thermoFill" id="thermoFill"></div>
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="pageTitle" id="pageTitle">Dashboard</div>
+          <div class="pageSub" id="pageSub">Supervision temps réel</div>
+        </div>
+      </header>
+
+      <!-- VIEWS -->
+      <section class="views">
+
+        <!-- HOME -->
+        <div class="view show" id="view-home">
+          <div class="homeWrap">
+            <div class="grid2">
+              <!-- Temp Card -->
+              <div class="card bigCard">
+                <div class="cardHead">
+                  <div>
+                    <div class="cardTitle">Température</div>
+                    <div class="cardSub">Ambiante</div>
+                  </div>
+                  <div class="bigValue"><span id="tempBig">-</span><span class="unit">°C</span></div>
+                </div>
+
+                <div class="contentRow">
+                  <div class="ringWrap">
+                    <svg class="ring" viewBox="0 0 120 120" aria-label="Temp ring">
+                      <circle class="ringBg" cx="60" cy="60" r="46"></circle>
+                      <circle class="ringFg ringTemp" id="ringTemp" cx="60" cy="60" r="46"></circle>
+                    </svg>
+                    <div class="ringCenter">
+                      <div class="ringLabel">TEMP</div>
+                      <div class="ringValue"><span id="tempCenter">-</span><span class="unit">°C</span></div>
+                    </div>
+                  </div>
+
+                  <div class="rightCol">
+                    <div class="label">Niveau</div>
+                    <div class="lvl">
+                      <div class="lvlFill" id="lvlTemp"></div>
+                    </div>
+
+                    <div class="label">Historique (10)</div>
+                    <div class="bars" id="barsTemp"></div>
+                  </div>
+                </div>
               </div>
-              <div style="height:10px"></div>
-              <div class="bulb">
-                <div class="bulbGlow" id="bulbGlow"></div>
+
+              <!-- Pressure Card -->
+              <div class="card bigCard">
+                <div class="cardHead">
+                  <div>
+                    <div class="cardTitle">Pression</div>
+                    <div class="cardSub">Atmosphérique</div>
+                  </div>
+                  <div class="bigValue"><span id="pressBig">-</span><span class="unit">hPa</span></div>
+                </div>
+
+                <div class="contentRow">
+                  <div class="ringWrap">
+                    <svg class="ring" viewBox="0 0 120 120" aria-label="Press ring">
+                      <circle class="ringBg" cx="60" cy="60" r="46"></circle>
+                      <circle class="ringFg ringPress" id="ringPress" cx="60" cy="60" r="46"></circle>
+                    </svg>
+                    <div class="ringCenter">
+                      <div class="ringLabel">PRES</div>
+                      <div class="ringValue"><span id="pressCenter">-</span><span class="unit">hPa</span></div>
+                    </div>
+                  </div>
+
+                  <div class="rightCol">
+                    <div class="label">Niveau</div>
+                    <div class="lvl">
+                      <div class="lvlFill" id="lvlPress"></div>
+                    </div>
+
+                    <div class="label">Historique (10)</div>
+                    <div class="bars" id="barsPress"></div>
+                  </div>
+                </div>
               </div>
             </div>
-
-            <div class="scale">
-              <div class="label">Valeur</div>
-              <div class="bigTemp"><span id="temp">-</span><span class="unit">°C</span></div>
-              <div class="tempBadge"><span>Plage</span><strong id="tempRange">0 → 50°C</strong></div>
-
-              <div class="sparkTitle">Historique (temp)</div>
-              <div class="spark"><svg id="sparkTemp" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>
-              <div class="tiny">La couleur change selon la température.</div>
-            </div>
           </div>
         </div>
 
-        <!-- Balloon -->
-        <div class="card">
-          <div class="cardTitle">
-            <h2>Pression</h2>
-            <div class="hint">ballon</div>
-          </div>
-
-          <div class="balloonZone">
-            <div class="balloon" id="balloon" aria-label="Pressure balloon">
-              <div class="balloonTie"></div>
-              <div class="balloonString"></div>
-            </div>
-
-            <div class="pressureMeta">
-              <div class="label">Valeur</div>
-              <div class="big"><span id="pressure">-</span><span class="unit" id="pressureUnit">hPa</span></div>
-              <div class="bar" aria-label="Pressure level">
-                <div id="pressureBar"></div>
+        <!-- TEMP VIEW -->
+        <div class="view" id="view-temp">
+          <div class="single">
+            <div class="card bigCard">
+              <div class="cardHead">
+                <div>
+                  <div class="cardTitle">Température</div>
+                  <div class="cardSub">Vue détaillée</div>
+                </div>
+                <div class="bigValue"><span id="tempOnlyBig">-</span><span class="unit">°C</span></div>
               </div>
 
-              <div class="sparkTitle">Historique (pression)</div>
-              <div class="spark"><svg id="sparkPressure" viewBox="0 0 100 40" preserveAspectRatio="none"></svg></div>
+              <div class="contentRow">
+                <div class="ringWrap">
+                  <svg class="ring" viewBox="0 0 120 120">
+                    <circle class="ringBg" cx="60" cy="60" r="46"></circle>
+                    <circle class="ringFg ringTemp" id="ringTemp2" cx="60" cy="60" r="46"></circle>
+                  </svg>
+                  <div class="ringCenter">
+                    <div class="ringLabel">TEMP</div>
+                    <div class="ringValue"><span id="tempOnlyCenter">-</span><span class="unit">°C</span></div>
+                  </div>
+                </div>
 
-              <div class="tiny" id="pressureHint">Pression atmosphérique (hPa).</div>
+                <div class="rightCol">
+                  <div class="label">Niveau</div>
+                  <div class="lvl">
+                    <div class="lvlFill" id="lvlTemp2"></div>
+                  </div>
+
+                  <div class="label">Historique (10)</div>
+                  <div class="bars bigBars" id="barsTemp2"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Chips -->
-      <div class="chips">
-        <div class="chip">
-          <div>
-            <div class="k">Device</div>
-            <div class="v" id="device">-</div>
+        <!-- PRESS VIEW -->
+        <div class="view" id="view-press">
+          <div class="single">
+            <div class="card bigCard">
+              <div class="cardHead">
+                <div>
+                  <div class="cardTitle">Pression</div>
+                  <div class="cardSub">Vue détaillée</div>
+                </div>
+                <div class="bigValue"><span id="pressOnlyBig">-</span><span class="unit">hPa</span></div>
+              </div>
+
+              <div class="contentRow">
+                <div class="ringWrap">
+                  <svg class="ring" viewBox="0 0 120 120">
+                    <circle class="ringBg" cx="60" cy="60" r="46"></circle>
+                    <circle class="ringFg ringPress" id="ringPress2" cx="60" cy="60" r="46"></circle>
+                  </svg>
+                  <div class="ringCenter">
+                    <div class="ringLabel">PRES</div>
+                    <div class="ringValue"><span id="pressOnlyCenter">-</span><span class="unit">hPa</span></div>
+                  </div>
+                </div>
+
+                <div class="rightCol">
+                  <div class="label">Niveau</div>
+                  <div class="lvl">
+                    <div class="lvlFill" id="lvlPress2"></div>
+                  </div>
+
+                  <div class="label">Historique (10)</div>
+                  <div class="bars bigBars" id="barsPress2"></div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="tiny">Identifiant</div>
         </div>
 
-        <div class="chip">
-          <div>
-            <div class="k">Pression</div>
-            <div class="v"><span id="pressureChip">-</span><span class="unit">hPa</span></div>
+        <!-- LOGS VIEW -->
+        <div class="view" id="view-logs">
+          <div class="single">
+            <div class="card logCard">
+              <div class="cardHead">
+                <div>
+                  <div class="cardTitle">Logs</div>
+                  <div class="cardSub">Dernières trames</div>
+                </div>
+                <button class="btn" id="clearLogs">Clear</button>
+              </div>
+
+              <div class="logBox" id="log"></div>
+              <div class="logHint">Affiche les 50 dernières lignes max.</div>
+            </div>
           </div>
-          <div class="tiny">Capteur</div>
         </div>
 
-        <div class="chip">
-          <div>
-            <div class="k">Timestamp</div>
-            <div class="v" style="font-size:16px;font-weight:800" id="ts">-</div>
-          </div>
-          <div class="tiny">Dernière trame</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- RIGHT -->
-    <section class="card">
-      <div class="cardTitle">
-        <h2>Événements</h2>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <div class="hint">WebSocket + crypto</div>
-          <button class="btn" id="clearLog">Clear</button>
-        </div>
-      </div>
-
-      <div class="row2">
-        <div id="log"></div>
-        <div class="tiny">
-          Le serveur déchiffre les trames AES-GCM après ECDH (P-256) + HKDF-SHA256.
-        </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
+  </div>
 
 <script>
-  const statusEl = document.getElementById("status");
+  // ---------------------------
+  // UI navigation
+  // ---------------------------
+  const navBtns = document.querySelectorAll(".navBtn");
+  const views = {
+    home: document.getElementById("view-home"),
+    temp: document.getElementById("view-temp"),
+    press: document.getElementById("view-press"),
+    logs: document.getElementById("view-logs"),
+  };
+
+  const pageTitle = document.getElementById("pageTitle");
+  const pageSub = document.getElementById("pageSub");
+
+  function setView(name){
+    for (const k in views) views[k].classList.remove("show");
+    views[name].classList.add("show");
+
+    navBtns.forEach(b => b.classList.toggle("active", b.dataset.view === name));
+
+    if (name === "home"){ pageTitle.textContent = "Dashboard"; pageSub.textContent = "Supervision temps réel"; }
+    if (name === "temp"){ pageTitle.textContent = "Température"; pageSub.textContent = "Mesure ambiante"; }
+    if (name === "press"){ pageTitle.textContent = "Pression"; pageSub.textContent = "Mesure atmosphérique"; }
+    if (name === "logs"){ pageTitle.textContent = "Logs"; pageSub.textContent = "Dernières trames"; }
+  }
+
+  navBtns.forEach(btn => btn.addEventListener("click", () => setView(btn.dataset.view)));
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
   const dotEl = document.getElementById("dot");
-
+  const statusEl = document.getElementById("status");
   const deviceEl = document.getElementById("device");
-  const tempEl = document.getElementById("temp");
-  const tsEl = document.getElementById("ts");
+  const dateTxt = document.getElementById("dateTxt");
 
-  const thermoFill = document.getElementById("thermoFill");
-  const bulbGlow = document.getElementById("bulbGlow");
-
-  const pressureEl = document.getElementById("pressure");
-  const pressureChipEl = document.getElementById("pressureChip");
-  const pressureUnit = document.getElementById("pressureUnit");
-  const pressureBar = document.getElementById("pressureBar");
-  const pressureHint = document.getElementById("pressureHint");
-
-  const balloon = document.getElementById("balloon");
   const logEl = document.getElementById("log");
-  const clearBtn = document.getElementById("clearLog");
+  const clearLogsBtn = document.getElementById("clearLogs");
 
-  const sparkTemp = document.getElementById("sparkTemp");
-  const sparkPressure = document.getElementById("sparkPressure");
+  const MAX_LOG_LINES = 50;
+  let logLines = [];
 
-  clearBtn.addEventListener("click", () => { logEl.textContent = ""; });
-
-  function log(line) {
+  function pushLog(line){
     const t = new Date().toLocaleTimeString();
-    logEl.textContent += `[${t}] ${line}\n`;
+    logLines.push(`[${t}] ${line}`);
+    if (logLines.length > MAX_LOG_LINES) logLines = logLines.slice(-MAX_LOG_LINES);
+    logEl.textContent = logLines.join("\n");
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
-
-  // --- Temperature visuals ---
-  const TEMP_MIN = 0;
-  const TEMP_MAX = 50;
-
-  function tempColor(temp){
-    if (temp <= 10) return { dot:"#3aa0ff", glow:"radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(255,255,255,0) 55%), radial-gradient(circle at 50% 60%, rgba(58,160,255,.35), rgba(58,160,255,0) 70%)" };
-    if (temp <= 25) return { dot:"#44d19f", glow:"radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(255,255,255,0) 55%), radial-gradient(circle at 50% 60%, rgba(68,209,159,.35), rgba(68,209,159,0) 70%)" };
-    if (temp <= 35) return { dot:"#ffb020", glow:"radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(255,255,255,0) 55%), radial-gradient(circle at 50% 60%, rgba(255,176,32,.35), rgba(255,176,32,0) 70%)" };
-    return { dot:"#ff4d6d", glow:"radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(255,255,255,0) 55%), radial-gradient(circle at 50% 60%, rgba(255,77,109,.35), rgba(255,77,109,0) 70%)" };
-  }
-
-  function setTemperature(t){
-    if (t === null || t === undefined || isNaN(t)) return;
-
-    const pct = clamp((t - TEMP_MIN) / (TEMP_MAX - TEMP_MIN), 0, 1);
-    thermoFill.style.height = `${pct * 100}%`;
-
-    const c = tempColor(t);
-    bulbGlow.style.background = c.glow;
-    dotEl.style.background = c.dot;
-  }
-
-  // --- Pressure visuals ---
-  const P_MIN = 950;
-  const P_MAX = 1050;
-
-  function setPressure(p){
-    if (p === null || p === undefined || isNaN(p)) return;
-
-    pressureUnit.textContent = "hPa";
-    pressureHint.textContent = "Pression atmosphérique (hPa).";
-
-    const pct = clamp((p - P_MIN) / (P_MAX - P_MIN), 0, 1);
-    pressureBar.style.width = `${pct * 100}%`;
-
-    // Balloon scale 0.70..1.10
-    const s = 0.70 + pct * 0.40;
-    balloon.style.transform = `scale(${s})`;
-
-    const v = Math.round(p * 100) / 100;
-    pressureEl.textContent = v.toString();
-    pressureChipEl.textContent = v.toString();
-  }
+  clearLogsBtn?.addEventListener("click", () => {
+    logLines = [];
+    logEl.textContent = "";
+  });
 
   function setStatus(s){
-    statusEl.textContent = s ?? "-";
-    if (!s) { dotEl.style.background = "#777"; return; }
-
-    const ss = String(s);
-    if (ss.includes("error")) {
-      dotEl.style.background = "var(--bad)";
-      dotEl.style.boxShadow = "0 0 0 6px rgba(255,77,109,.12)";
-      return;
-    }
-    if (ss.includes("connected")) {
-      dotEl.style.background = "var(--info)";
-      dotEl.style.boxShadow = "0 0 0 6px rgba(58,160,255,.12)";
-      return;
-    }
-    if (ss.includes("running")) {
-      dotEl.style.background = "var(--good)";
-      dotEl.style.boxShadow = "0 0 0 6px rgba(68,209,159,.12)";
-      return;
-    }
-    dotEl.style.background = "#777";
-    dotEl.style.boxShadow = "0 0 0 6px rgba(255,255,255,.03)";
+    statusEl.textContent = s ?? "idle";
+    const st = String(s || "").toLowerCase();
+    if (st.includes("error")) dotEl.style.background = "var(--bad)";
+    else if (st.includes("running")) dotEl.style.background = "var(--good)";
+    else if (st.includes("connected")) dotEl.style.background = "var(--warn)";
+    else dotEl.style.background = "var(--muted)";
   }
 
-  function formatTs(ts){
+  function fmtTs(ts){
     if (!ts) return "-";
-    const d = new Date(ts * 1000);
-    return d.toLocaleString();
+    return new Date(ts * 1000).toLocaleString();
   }
 
-  // --- Simple sparklines (last N points) ---
-  const SERIES_N = 30;
-  const seriesTemp = [];
-  const seriesPressure = [];
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 
-  function pushSeries(arr, v){
+  // ---------------------------
+  // Ring (SVG)
+  // ---------------------------
+  function setRing(circleEl, pct){
+    const r = 46;
+    const c = 2 * Math.PI * r;
+    const dash = c * clamp(pct, 0, 1);
+    circleEl.style.strokeDasharray = `${dash} ${c - dash}`;
+  }
+
+  // ---------------------------
+  // History bars (10)
+  // ---------------------------
+  const HIST_MAX = 10;
+  const tempHist = [];
+  const pressHist = [];
+
+  function pushHist(arr, v){
     arr.push(v);
-    while (arr.length > SERIES_N) arr.shift();
+    if (arr.length > HIST_MAX) arr.shift();
   }
 
-  function renderSpark(svgEl, arr){
-    // clear
-    while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
-
-    if (arr.length < 2) return;
-
-    const min = Math.min(...arr);
-    const max = Math.max(...arr);
-    const range = (max - min) || 1;
-
-    const pts = arr.map((v, i) => {
-      const x = (i / (arr.length - 1)) * 100;
-      const y = 38 - ((v - min) / range) * 34; // keep margins
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    }).join(" ");
-
-    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    poly.setAttribute("points", pts);
-    poly.setAttribute("fill", "none");
-    poly.setAttribute("stroke", "rgba(231,235,255,.75)");
-    poly.setAttribute("stroke-width", "2");
-    poly.setAttribute("stroke-linecap", "round");
-    poly.setAttribute("stroke-linejoin", "round");
-    svgEl.appendChild(poly);
-
-    const base = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    base.setAttribute("x1", "0"); base.setAttribute("x2", "100");
-    base.setAttribute("y1", "38"); base.setAttribute("y2", "38");
-    base.setAttribute("stroke", "rgba(255,255,255,.08)");
-    base.setAttribute("stroke-width", "1");
-    svgEl.appendChild(base);
+  function renderBars(container, arr, min, max){
+    container.innerHTML = "";
+    const safeMax = Math.max(max, min + 1e-9);
+    arr.forEach(v => {
+      const pct = clamp((v - min) / (safeMax - min), 0, 1);
+      const bar = document.createElement("div");
+      bar.className = "barItem";
+      bar.style.height = `${Math.round(10 + pct * 48)}px`; // un peu plus compact
+      container.appendChild(bar);
+    });
+    for (let i = arr.length; i < HIST_MAX; i++){
+      const ghost = document.createElement("div");
+      ghost.className = "barItem ghost";
+      ghost.style.height = "12px";
+      container.appendChild(ghost);
+    }
   }
 
-  // --- WebSocket ---
+  // ---------------------------
+  // UI elements mapping
+  // ---------------------------
+  const tempBig = document.getElementById("tempBig");
+  const tempCenter = document.getElementById("tempCenter");
+  const pressBig = document.getElementById("pressBig");
+  const pressCenter = document.getElementById("pressCenter");
+
+  const tempOnlyBig = document.getElementById("tempOnlyBig");
+  const tempOnlyCenter = document.getElementById("tempOnlyCenter");
+  const pressOnlyBig = document.getElementById("pressOnlyBig");
+  const pressOnlyCenter = document.getElementById("pressOnlyCenter");
+
+  const ringTemp = document.getElementById("ringTemp");
+  const ringPress = document.getElementById("ringPress");
+  const ringTemp2 = document.getElementById("ringTemp2");
+  const ringPress2 = document.getElementById("ringPress2");
+
+  const lvlTemp = document.getElementById("lvlTemp");
+  const lvlPress = document.getElementById("lvlPress");
+  const lvlTemp2 = document.getElementById("lvlTemp2");
+  const lvlPress2 = document.getElementById("lvlPress2");
+
+  const barsTemp = document.getElementById("barsTemp");
+  const barsPress = document.getElementById("barsPress");
+  const barsTemp2 = document.getElementById("barsTemp2");
+  const barsPress2 = document.getElementById("barsPress2");
+
+  const TEMP_MIN = 0, TEMP_MAX = 50;
+  const PRES_MIN = 950, PRES_MAX = 1050;
+
+  function setTempUI(t){
+    if (t === null || t === undefined || isNaN(t)) return;
+    const t2 = Math.round(t * 100) / 100;
+
+    tempBig.textContent = t2;
+    tempCenter.textContent = t2;
+    tempOnlyBig.textContent = t2;
+    tempOnlyCenter.textContent = t2;
+
+    const pct = clamp((t - TEMP_MIN) / (TEMP_MAX - TEMP_MIN), 0, 1);
+    setRing(ringTemp, pct);
+    setRing(ringTemp2, pct);
+
+    lvlTemp.style.width = `${pct*100}%`;
+    lvlTemp2.style.width = `${pct*100}%`;
+
+    pushHist(tempHist, t);
+    renderBars(barsTemp, tempHist, TEMP_MIN, TEMP_MAX);
+    renderBars(barsTemp2, tempHist, TEMP_MIN, TEMP_MAX);
+  }
+
+  function setPressUI(p){
+    if (p === null || p === undefined || isNaN(p)) return;
+    const p2 = Math.round(p * 100) / 100;
+
+    pressBig.textContent = p2;
+    pressCenter.textContent = p2;
+    pressOnlyBig.textContent = p2;
+    pressOnlyCenter.textContent = p2;
+
+    const pct = clamp((p - PRES_MIN) / (PRES_MAX - PRES_MIN), 0, 1);
+    setRing(ringPress, pct);
+    setRing(ringPress2, pct);
+
+    lvlPress.style.width = `${pct*100}%`;
+    lvlPress2.style.width = `${pct*100}%`;
+
+    pushHist(pressHist, p);
+    renderBars(barsPress, pressHist, PRES_MIN, PRES_MAX);
+    renderBars(barsPress2, pressHist, PRES_MIN, PRES_MAX);
+  }
+
+  // ---------------------------
+  // WebSocket
+  // ---------------------------
   const ws = new WebSocket(`ws://${location.host}/ws`);
 
-  ws.onopen = () => { log("[WS] connected"); setStatus("ws_connected"); };
-  ws.onclose = () => { log("[WS] closed"); setStatus("ws_closed"); };
-  ws.onerror = () => { log("[WS] error"); setStatus("ws_error"); };
+  ws.onopen = () => { pushLog("WS connected"); };
+  ws.onclose = () => { pushLog("WS closed"); setStatus("ws_closed"); };
+  ws.onerror = () => { pushLog("WS error"); setStatus("ws_error"); };
 
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
@@ -592,69 +447,50 @@
     if (msg.type === "state") {
       setStatus(msg.status);
       deviceEl.textContent = msg.deviceId ?? "-";
-      tempEl.textContent = msg.temp ?? "-";
-      tsEl.textContent = formatTs(msg.ts);
+      dateTxt.textContent = fmtTs(msg.ts);
 
-      setTemperature(Number(msg.temp));
-      setPressure(Number(msg.pressure));
+      if (msg.temp !== undefined) setTempUI(Number(msg.temp));
+      if (msg.pressure !== undefined) setPressUI(Number(msg.pressure));
 
-      pushSeries(seriesTemp, Number(msg.temp));
-      pushSeries(seriesPressure, Number(msg.pressure));
-      renderSpark(sparkTemp, seriesTemp);
-      renderSpark(sparkPressure, seriesPressure);
-
-      log("[STATE] loaded");
+      pushLog("State loaded");
       return;
     }
 
     if (msg.type === "status") {
       setStatus(msg.status);
-      log("[STATUS] " + msg.status);
+      pushLog(`Status: ${msg.status}`);
       return;
     }
 
     if (msg.type === "hello") {
       deviceEl.textContent = msg.deviceId ?? "-";
-      log("[HELLO] deviceId=" + msg.deviceId);
+      pushLog(`Hello: ${msg.deviceId}`);
       return;
     }
 
     if (msg.type === "key_ok") {
-      log("[CRYPTO] ECDH done -> AES key derived");
+      pushLog("Crypto: ECDH OK → AES key derived");
       return;
     }
 
     if (msg.type === "data") {
       setStatus(msg.status ?? "running");
       deviceEl.textContent = msg.deviceId ?? "-";
+      dateTxt.textContent = fmtTs(msg.ts);
 
-      tempEl.textContent = msg.temp ?? "-";
-      tsEl.textContent = formatTs(msg.ts);
+      if (msg.temp !== undefined) setTempUI(Number(msg.temp));
+      if (msg.pressure !== undefined) setPressUI(Number(msg.pressure));
 
-      setTemperature(Number(msg.temp));
-      setPressure(Number(msg.pressure));
-
-      pushSeries(seriesTemp, Number(msg.temp));
-      pushSeries(seriesPressure, Number(msg.pressure));
-      renderSpark(sparkTemp, seriesTemp);
-      renderSpark(sparkPressure, seriesPressure);
-
-      log(`[DATA] temp=${msg.temp} pressure=${msg.pressure} ts=${msg.ts}`);
-      return;
-    }
-
-    if (msg.type === "pong") {
-      // ignore (keepalive)
+      pushLog(`DATA temp=${msg.temp} pressure=${msg.pressure} ts=${msg.ts}`);
       return;
     }
 
     if (msg.type === "log") {
-      log("[LOG] " + msg.msg);
+      pushLog(msg.msg);
       return;
     }
   };
 
-  // keepalive
   setInterval(() => { if (ws.readyState === 1) ws.send("ping"); }, 5000);
 </script>
 </body>
